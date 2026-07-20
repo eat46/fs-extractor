@@ -43,7 +43,7 @@ SYSTEM_INSTRUCTION = """\
 def build_user_context(filename: str | None = None) -> str:
     """把檔名提示與抽取要求當輸入參數傳給模型。
 
-    檔名常含「股票代碼」與「期別」線索（例：202601_3008_... → 股票 3008、2026 年第 1 季），
+    檔名常含「股票代碼」與「期別」線索（例：202601_XXXX_... → 股票 XXXX、2026 年第 1 季），
     但一律以 PDF 內文為權威來源；檔名僅供交叉驗證，衝突時採內文。
     """
     hint = f"檔名（僅供輔助，內文為準）：{filename}\n" if filename else ""

@@ -1,7 +1,7 @@
 """集中設定（pydantic-settings，讀 .env）。
 
 抽取服務、provider 工廠都只依賴這裡的 `settings`；
-換模型、調門檻都只改 .env，不動程式碼（對齊 pdf-extractor「換模型只改 .env」）。
+換模型、調門檻都只改 .env，不動程式碼。
 本專案為 MVP 核心：無資料庫、無佇列，單檔同步抽取。
 """
 from __future__ import annotations

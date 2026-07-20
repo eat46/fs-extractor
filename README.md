@@ -1,8 +1,7 @@
 # fs-extractor · 台股季報財務數據萃取（MVP 核心）
 
 從台灣上市公司**季報 PDF**（合併綜合損益表）抽取本期關鍵財務指標，輸出結構化 JSON / CSV。
-架構沿用 `pdf-extractor` 的可複用骨架，但**不含資料庫、佇列、S3、SMB、複檢 UI**——
-單檔同步抽取，聚焦「PDF → LLM → 結構化輸出」這條主線。
+**不含資料庫、佇列、雲端儲存、複檢 UI**——單檔同步抽取，聚焦「PDF → LLM → 結構化輸出」這條主線。
 
 > **建議來源**：[公開資訊觀測站](https://mops.twse.com.tw/mops/web/index) → 財務報告書。
 >
@@ -38,7 +37,7 @@ LLM **只抽合併綜合損益表上印出來的原始數字**；需要計算的
 營業利益 ≤ 毛利、`毛利 ≈ 營收−成本`、`營業利益 ≈ 毛利−營業費用`（含容忍度）、
 比率落在合理範圍、稀釋 EPS ≤ 基本 EPS。輸出含 `validation.ok` 與 `validation.issues`。
 
-## 架構（可複用骨架）
+## 架構
 
 ```
 app/
@@ -81,7 +80,7 @@ CLAUDE_MODEL=claude-haiku-4-5-20251001
 ### CLI
 
 ```bash
-python -m scripts.extract_cli uploaded/202601_3008_AI1_20260719_232147.pdf --json out.json --csv out.csv
+python -m scripts.extract_cli path/to/your_report.pdf --json out.json --csv out.csv
 ```
 
 ### Web
@@ -100,5 +99,4 @@ uvicorn app.main:app --reload      # http://localhost:8000/
 ## 後續規劃
 
 - **資產負債表**、**現金流量表**抽取（目前僅綜合損益表）。
-- 可從 pdf-extractor 移植：RQ/Redis 佇列、S3 儲存、SMB 來源掃描、每日批次、
-  人工複檢介面、資料庫持久化。
+- 批次處理與佇列、雲端儲存、每日排程、人工複檢介面、資料庫持久化。
