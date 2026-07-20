@@ -5,3 +5,4 @@ __pycache__/
 .DS_Store
 _out/
 uploaded/*.pdf
+.claude/settings.local.json

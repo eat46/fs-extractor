@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(ls -la /Users/chenchiyu/Developer/fs-extractor/ && echo \"---REF---\" && ls -la /Users/chenchiyu/Documents/pdf-extractor/)",
-      "Read(//Users/chenchiyu/Documents/pdf-extractor/**)"
-    ]
-  }
-}
