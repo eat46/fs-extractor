@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="zh-Hant">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>台股季報財務數據萃取</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --fg: #1a1a1a;
+      --muted: #6b7280;
+      --bg: #ffffff;
+      --card: #f6f7f9;
+      --border: #e2e5ea;
+      --accent: #3b82f6;
+      --pass-bg: rgba(34, 197, 94, .16);
+      --pass-fg: #15803d;
+      --fail-bg: rgba(239, 68, 68, .16);
+      --fail-fg: #b91c1c;
+      --warn: #b45309;
+      --err: #b91c1c;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e6e6e6;
+        --muted: #9aa0aa;
+        --bg: #16181c;
+        --card: #1f2228;
+        --border: #2e323a;
+        --pass-fg: #4ade80;
+        --fail-fg: #f87171;
+        --warn: #fbbf24;
+        --err: #f87171;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      max-width: 820px;
+      margin: 40px auto;
+      padding: 0 16px;
+      line-height: 1.6;
+      color: var(--fg);
+      background: var(--bg);
+      transition: max-width .25s ease;
+    }
+
+    /* 有結果時放寬版面，容納左右並排 */
+    body.split {
+      max-width: 1400px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      margin-bottom: 4px;
+    }
+
+    h2 {
+      font-size: 1rem;
+      margin: 24px 0 8px;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: .02em;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .small {
+      font-size: .88rem;
+    }
+
+    .drop {
+      border: 2px dashed var(--border);
+      border-radius: 14px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+
+    .drop.hover {
+      border-color: var(--accent);
+      background: rgba(59, 130, 246, .07);
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin: 16px 0;
+      flex-wrap: wrap;
+    }
+
+    button {
+      font-size: .95rem;
+      padding: 8px 16px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--fg);
+      cursor: pointer;
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: default;
+    }
+
+    .spinner {
+      display: none;
+    }
+
+    .spinner.on {
+      display: inline;
+    }
+
+    .head {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 20px 0 15px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .head .title {
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .badge {
+      padding: 3px 12px;
+      border-radius: 999px;
+      font-size: .85rem;
+      font-weight: 600;
+    }
+
+    .badge.pass {
+      background: var(--pass-bg);
+      color: var(--pass-fg);
+    }
+
+    .badge.fail {
+      background: var(--fail-bg);
+      color: var(--fail-fg);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+
+    td.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum";
+      white-space: nowrap;
+    }
+
+    tr.total td {
+      font-weight: 700;
+    }
+
+    tr.derived td {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .unit {
+      color: var(--muted);
+      font-weight: 400;
+      font-size: .82rem;
+    }
+
+    .issues {
+      margin: 8px 0 0;
+      padding-left: 18px;
+    }
+
+    .issues li {
+      margin: 4px 0;
+    }
+
+    .issues .error {
+      color: var(--err);
+    }
+
+    .issues .warning {
+      color: var(--warn);
+    }
+
+    .issue-detail {
+      color: var(--muted);
+      font-size: .82rem;
+    }
+
+    pre {
+      background: var(--card);
+      padding: 16px;
+      border-radius: 10px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: .85rem;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: .82rem;
+      margin-top: 16px;
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+    }
+
+    /* ---- 左右並排：PDF 原檔 | 抽取結果 ---- */
+    .split-wrap {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      margin-bottom: 30px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .pdf-pane {
+      flex: 1 1 0;
+      min-width: 0;
+      position: sticky;
+      top: 20px;
+      align-self: flex-start;
+    }
+
+    .pdf-pane .pdf-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: .88rem;
+    }
+
+    .pdf-pane iframe {
+      width: 100%;
+      height: calc(100vh - 90px);
+      min-height: 480px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--card);
+    }
+
+    .data-pane {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+
+    /* 窄螢幕：改為上下堆疊，PDF 不再黏著 */
+    @media (max-width: 900px) {
+      .split-wrap {
+        flex-direction: column;
+      }
+
+      .pdf-pane {
+        position: static;
+        width: 100%;
+      }
+
+      .pdf-pane iframe {
+        height: 70vh;
+      }
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>台股季報財務數據萃取</h1>
+
+  <!-- 結果區 -->
+  <div id="out" hidden>
+    <div class="head">
+      <span id="title" class="title"></span>
+      <span id="period" class="muted"></span>
+      <span id="badge"></span>
+    </div>
+
+    <div class="split-wrap">
+      <!-- 左：使用者上傳的原始 PDF -->
+      <div class="pdf-pane">
+        <div class="pdf-head">
+          <span>📄 原始 PDF</span>
+          <span id="pdfName" class="small"></span>
+        </div>
+        <iframe id="pdfFrame" title="上傳的 PDF"></iframe>
+      </div>
+
+      <!-- 右：抽取結果 -->
+      <div class="data-pane">
+        <div>
+          <h2>損益表原始數字 <span class="unit">單位：新台幣千元</span></h2>
+          <table>
+            <tbody id="amounts"></tbody>
+          </table>
+
+          <h2>每股盈餘 <span class="unit">單位：新台幣元</span></h2>
+          <table>
+            <tbody id="eps"></tbody>
+          </table>
+
+          <h2>計算比率 <span class="unit">後端由原始金額計算</span></h2>
+          <table>
+            <tbody id="ratios"></tbody>
+          </table>
+
+          <div id="issuesWrap" hidden>
+            <h2>驗證提醒</h2>
+            <ul id="issues" class="issues"></ul>
+          </div>
+        </div>
+
+
+        <div class="row" style="margin-top:20px">
+          <button id="dljson">下載 JSON</button>
+          <button id="dlcsv">下載 CSV</button>
+          <button id="toggleRaw">檢視原始 JSON</button>
+          <button id="reset">重新上傳</button>
+        </div>
+        <pre id="raw" hidden></pre>
+
+        <div id="meta" class="meta"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 上傳區 -->
+  <p class="muted small">一次上傳一份季報 PDF → 抽取合併綜合損益表原始數字 → 後端計算比率並驗證 → 顯示全部數字。</p>
+  <p class="muted small">
+    建議來源：<a href="https://mops.twse.com.tw/mops/web/index" target="_blank" rel="noopener">公開資訊觀測站</a>
+    → 財務報告書。
+  </p>
+  <p class="muted small">
+    ℹ️ 目前僅支援<strong>綜合損益表</strong>的抽取；<strong>資產負債表</strong>與<strong>現金流量表</strong>即將推出。
+  </p>
+
+  <div id="uploader">
+    <div id="drop" class="drop">
+      <p>拖曳 PDF 到這裡，或點擊選檔</p>
+      <input id="file" type="file" accept="application/pdf" hidden />
+    </div>
+    <div class="row">
+      <button id="go" class="primary" disabled>開始分析</button>
+      <span id="name" class="muted small"></span>
+      <span id="spin" class="spinner muted small">分析中…（模型讀取整份 PDF，約需數秒）</span>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    let picked = null, lastResult = null, pdfUrl = null;
+
+    // 釋放舊的 PDF blob URL，避免記憶體外洩
+    function clearPdf() {
+      if (pdfUrl) { URL.revokeObjectURL(pdfUrl); pdfUrl = null; }
+      $('pdfFrame').removeAttribute('src');
+    }
+
+    // ---- 數字格式化 ----
+    const DASH = '—';
+    const amt = v => (v === null || v === undefined) ? DASH
+      : Math.round(v).toLocaleString('en-US');          // 千元：整數 + 千分位
+    const eps = v => (v === null || v === undefined) ? DASH : v.toFixed(2);
+    const pct = v => (v === null || v === undefined) ? DASH : v.toFixed(2) + '%';
+
+    // ---- 檔案挑選 ----
+    function setFile(f) {
+      picked = f; $('name').textContent = f ? f.name : ''; $('go').disabled = !f;
+    }
+    $('drop').addEventListener('click', () => $('file').click());
+    $('file').addEventListener('change', e => setFile(e.target.files[0]));
+    ['dragover', 'dragenter'].forEach(ev => $('drop').addEventListener(ev, e => {
+      e.preventDefault(); $('drop').classList.add('hover');
+    }));
+    ['dragleave', 'drop'].forEach(ev => $('drop').addEventListener(ev, e => {
+      e.preventDefault(); $('drop').classList.remove('hover');
+    }));
+    $('drop').addEventListener('drop', e => { if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); });
+
+    // ---- 送出抽取 ----
+    $('go').addEventListener('click', async () => {
+      if (!picked) return;
+      $('go').disabled = true; $('spin').classList.add('on'); $('out').hidden = true;
+      const fd = new FormData(); fd.append('file', picked);
+      try {
+        const r = await fetch('/api/extract', { method: 'POST', body: fd });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.detail || r.statusText);
+        lastResult = data;
+        render(data);
+      } catch (err) {
+        alert('抽取失敗：' + err.message);
+      } finally {
+        $('go').disabled = false; $('spin').classList.remove('on');
+      }
+    });
+
+    // ---- 渲染結果 ----
+    function rowsHTML(rows) {
+      // rows: [label, value, {cls, unit}]
+      return rows.map(([label, value, opt = {}]) =>
+        `<tr class="${opt.cls || ''}"><td>${label}${opt.unit ? ` <span class="unit">${opt.unit}</span>` : ''}</td>` +
+        `<td class="num">${value}</td></tr>`).join('');
+    }
+
+    function render(data) {
+      const s = data.statement, d = data.validation.derived, v = data.validation, m = data.meta;
+
+      // 左欄顯示使用者剛上傳的 PDF（完全在瀏覽器端，無需後端）
+      clearPdf();
+      if (picked) {
+        pdfUrl = URL.createObjectURL(picked);
+        $('pdfFrame').src = pdfUrl;
+        $('pdfName').textContent = picked.name;
+      }
+      document.body.classList.add('split');
+
+      $('title').textContent = `${s.company_name || '（未知公司）'}${s.stock_code ? ` (${s.stock_code})` : ''}`;
+      $('period').textContent = s.period || '';
+      $('badge').innerHTML = v.ok
+        ? '<span class="badge pass">驗證通過</span>'
+        : '<span class="badge fail">驗證未過</span>';
+
+      $('amounts').innerHTML = rowsHTML([
+        ['營業收入', amt(s.revenue)],
+        ['營業成本', amt(s.cost_of_revenue)],
+        ['營業毛利（淨額）', amt(s.gross_profit), { cls: 'total' }],
+        ['營業費用', amt(s.operating_expenses)],
+        ['營業利益', amt(s.operating_income), { cls: 'total' }],
+        ['本期淨利', amt(s.net_income), { cls: 'total' }],
+      ]);
+
+      $('eps').innerHTML = rowsHTML([
+        ['基本每股盈餘', eps(s.eps_basic)],
+        ['稀釋每股盈餘', eps(s.eps_diluted)],
+      ]);
+
+      $('ratios').innerHTML = rowsHTML([
+        ['毛利率', pct(d.gross_margin), { cls: 'derived' }],
+        ['營業利益率', pct(d.operating_margin), { cls: 'derived' }],
+        ['淨利率', pct(d.net_margin), { cls: 'derived' }],
+      ]);
+
+      // 驗證提醒
+      const issues = v.issues || [];
+      $('issuesWrap').hidden = issues.length === 0;
+      $('issues').innerHTML = issues.map(i => {
+        let extra = '';
+        if (i.detail && i.detail.gap !== undefined) {
+          extra = `<div class="issue-detail">差額 ${Math.round(i.detail.gap).toLocaleString('en-US')}` +
+            `（${i.detail.gap_pct_of_revenue}% of 營收）｜重算值 ${Math.round(i.detail.expected).toLocaleString('en-US')}` +
+            ` vs 抽取值 ${Math.round(i.detail.actual).toLocaleString('en-US')}</div>`;
+        }
+        return `<li class="${i.level}">[${i.level}] ${i.field}：${i.message}${extra}</li>`;
+      }).join('');
+
+      // 原始 JSON
+      $('raw').textContent = JSON.stringify({ statement: s, validation: v }, null, 2);
+      $('raw').hidden = true; $('toggleRaw').textContent = '檢視原始 JSON';
+
+      // meta
+      const parts = [
+        `${m.provider}/${m.model}`,
+        `in ${m.input_tokens} / out ${m.output_tokens} tok`,
+        `~$${m.cost_usd}`,
+      ];
+      if (s.source_page != null) parts.push(`來源頁 ${s.source_page}`);
+      if (s.confidence != null) parts.push(`信心 ${s.confidence}`);
+      $('meta').textContent = parts.join(' · ');
+
+      $('out').hidden = false;
+      $('out').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // ---- 下載 / 切換 / 重設 ----
+    function download(name, text, type) {
+      const blob = new Blob([text], { type });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name; a.click();
+      URL.revokeObjectURL(a.href);
+    }
+    function baseName() {
+      const s = lastResult.statement;
+      return `${s.stock_code || 'fs'}_${(s.period || '').replace(/[^0-9A-Za-z]/g, '') || 'extract'}`;
+    }
+    $('dljson').addEventListener('click', () => {
+      if (lastResult) download(baseName() + '.json',
+        JSON.stringify({ statement: lastResult.statement, validation: lastResult.validation }, null, 2),
+        'application/json');
+    });
+    $('dlcsv').addEventListener('click', () => {
+      if (lastResult) download(baseName() + '.csv', lastResult.csv, 'text/csv;charset=utf-8');
+    });
+    $('toggleRaw').addEventListener('click', () => {
+      const hidden = $('raw').hidden;
+      $('raw').hidden = !hidden;
+      $('toggleRaw').textContent = hidden ? '隱藏原始 JSON' : '檢視原始 JSON';
+    });
+    $('reset').addEventListener('click', () => {
+      lastResult = null; setFile(null); $('file').value = '';
+      clearPdf(); document.body.classList.remove('split');
+      $('out').hidden = true; window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  </script>
+</body>
+
+</html>
