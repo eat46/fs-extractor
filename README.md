@@ -46,8 +46,8 @@ app/
   schemas/extraction.py     # Pydantic → JSON Schema 結構化輸出契約（只含原始欄位）
   services/
     llm/base.py             # Provider 抽象層（換模型只改 .env）
-    llm/claude_provider.py  # Claude（預設，document block + 強制 tool use）
-    llm/gemini_provider.py  # Gemini（替代，response schema）
+    llm/gemini_provider.py  # Gemini（預設，response schema）
+    llm/claude_provider.py  # Claude（替代，document block + 強制 tool use）
     validation.py           # 衍生比率 + 內部一致性驗證（error/warning）
     extraction_service.py   # 主流程：PDF → LLM → 驗證 → ExtractionOutcome
     export.py               # JSON / CSV 輸出（原始 + 衍生 + 驗證狀態）
@@ -62,15 +62,15 @@ scripts/extract_cli.py      # CLI：單檔抽取
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env        # 填入 ANTHROPIC_API_KEY
+cp .env.example .env        # 填入 API_KEY
 ```
 
 `.env` 關鍵設定：
 
 ```
-LLM_PROVIDER=claude          # claude | gemini
-ANTHROPIC_API_KEY=sk-ant-...
-CLAUDE_MODEL=claude-haiku-4-5-20251001
+LLM_PROVIDER=gemini          # gemini | claude
+GEMINI_API_KEY=
+CLAUDE_MODEL=gemini-3.1-flash-lite
 ```
 
 換模型／換 provider 只改 `.env`，不動程式碼。
@@ -95,6 +95,11 @@ uvicorn app.main:app --reload      # http://localhost:8000/
 - `POST /api/extract` — 回傳 `{statement, meta, csv}`
 - `POST /api/extract.csv` — 直接回傳 CSV
 - `GET /health` — 顯示目前 provider
+
+![Upload interface for the financial statement extractor](docs/fs-extractor-upload.png)
+
+
+![Extraction result showing raw figures alongside computed ratios and validation status](docs/fs-extractor-result.png)
 
 ## 後續規劃
 
